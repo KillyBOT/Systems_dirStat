@@ -5,10 +5,10 @@ else
 endif
 
 all: dirStat.o
-	$(CC) -o dirStat dirStat.o
+	$(CC) -o dirStat dirStat.o -lm
 
 dirStat.o: dirStat.c
-	$(CC) -c dirStat.c
+	$(CC) -c dirStat.c -lm
 
 run:
-	./dirStat .
+	./dirStat . -r
