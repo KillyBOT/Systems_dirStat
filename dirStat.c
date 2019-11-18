@@ -13,7 +13,7 @@
 #define TYPE_FILE 8
 #define TYPE_FOLDER 4
 
-long getDirNum(DIR* dir){
+long getDirNum(char* path, DIR* dir){
   long size = 0;
   struct dirent* dirStream = malloc(sizeof(struct dirent));
 
@@ -25,25 +25,29 @@ long getDirNum(DIR* dir){
   }
 
   free(dirStream);
+  closedir(dir);
+  dir = opendir(path);
 
   return size;
 }
 
 int getLargestDirNum(char* path, DIR* dir){
-  int size = (int)log10(getDirNum(dir)) + 1;
+  int size = (int)log10(getDirNum(path,dir));
   DIR* subDir;
-  struct dirent* dirStream = malloc(sizeof(struct dirent));
+  struct dirent* dirStream;
   char folderPath[512];
 
   dirStream = readdir(dir);
 
   while(dirStream != NULL) {
     if(dirStream->d_type == TYPE_FOLDER && strcmp(dirStream->d_name, ".") != 0){
+      strcpy(folderPath,"");
       sprintf(folderPath, "%s/%s",path,dirStream->d_name);
       subDir = opendir(folderPath);
-      if((int)log10(getDirNum(subDir)) > size) size = (int)log10(getDirNum(subDir));
+      if( (int)log10(getDirNum(folderPath,subDir)) > size) size = (int)log10(getDirNum(folderPath,subDir));
       closedir(subDir);
     }
+    dirStream = readdir(dir);
   }
 
   free(dirStream);
@@ -54,7 +58,7 @@ int getLargestDirNum(char* path, DIR* dir){
 int getLargestFileSize(char* path, DIR* dir){
   int size = 0;
   char filePath[512];
-  struct dirent* dirStream = malloc(sizeof(struct dirent));
+  struct dirent* dirStream;
   struct stat* fs = malloc(sizeof(struct stat));
 
   dirStream = readdir(dir);
@@ -75,7 +79,7 @@ int getLargestFileSize(char* path, DIR* dir){
 }
 
 long getFileStats(char* path, struct dirent* dirStream, int lDirNum, int lFileSize){
-  
+
   DIR* dir;
   int temp = 0b100000000;
   long size;
@@ -104,7 +108,7 @@ long getFileStats(char* path, struct dirent* dirStream, int lDirNum, int lFileSi
 
   if(dirStream->d_type == TYPE_FOLDER) {
     dir = opendir(finalPath);
-    printf(" %*ld", lDirNum,getDirNum(dir));
+    printf(" %*ld", lDirNum,getDirNum(finalPath,dir));
     closedir(dir);
   } else printf(" %*d",lDirNum, 1);
 
@@ -147,7 +151,7 @@ long getDirStats(char* path, int ifR, int indent){
   dirStream = malloc(sizeof(struct dirent*));
 
   totalSize = 0;
-  
+
   lFileSize = getLargestFileSize(path, dir);
   closedir(dir);
 
@@ -156,11 +160,10 @@ long getDirStats(char* path, int ifR, int indent){
   closedir(dir);
 
   dir = opendir(path);
-
   dirStream = readdir(dir);
 
   while(dirStream != NULL){
-    
+
     for(int x = 0; x < indent; x++) printf("\t");
 
     totalSize += getFileStats(path,dirStream,lDirNum,lFileSize);
