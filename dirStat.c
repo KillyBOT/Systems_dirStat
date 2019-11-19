@@ -13,26 +13,26 @@
 #define TYPE_FILE 8
 #define TYPE_FOLDER 4
 
-long getDirNum(char* path, DIR* dir){
+long getDirNum(char* path){
   long size = 0;
-  struct dirent* dirStream = malloc(sizeof(struct dirent));
+  struct dirent* dirStream;
 
+  DIR* dir = opendir(path);
   dirStream = readdir(dir);
 
   while(dirStream != NULL) {
-    if(dirStream->d_type == TYPE_FOLDER)size++;
+    if(dirStream->d_type == TYPE_FOLDER) size++;
     dirStream = readdir(dir);
   }
 
-  free(dirStream);
   closedir(dir);
-  dir = opendir(path);
 
   return size;
 }
 
-int getLargestDirNum(char* path, DIR* dir){
-  int size = (int)log10(getDirNum(path,dir));
+int getLargestDirNum(char* path){
+  int size = (int)log10(getDirNum(path));
+  DIR* dir = opendir(path);
   DIR* subDir;
   struct dirent* dirStream;
   char folderPath[512];
@@ -41,39 +41,41 @@ int getLargestDirNum(char* path, DIR* dir){
 
   while(dirStream != NULL) {
     if(dirStream->d_type == TYPE_FOLDER && strcmp(dirStream->d_name, ".") != 0){
-      strcpy(folderPath,"");
       sprintf(folderPath, "%s/%s",path,dirStream->d_name);
+
       subDir = opendir(folderPath);
-      if( (int)log10(getDirNum(folderPath,subDir)) > size) size = (int)log10(getDirNum(folderPath,subDir));
+      if( (int)log10(getDirNum(folderPath)) > size) size = (int)log10(getDirNum(folderPath));
       closedir(subDir);
     }
     dirStream = readdir(dir);
   }
 
-  free(dirStream);
+  closedir(dir);
+  //free(dirStream);
 
   return size + 1;
 }
 
-int getLargestFileSize(char* path, DIR* dir){
+int getLargestFileSize(char* path){
   int size = 0;
   char filePath[512];
   struct dirent* dirStream;
-  struct stat* fs = malloc(sizeof(struct stat));
+  struct stat fs;
+  DIR* dir = opendir(path);
 
   dirStream = readdir(dir);
 
   while(dirStream != NULL) {
     sprintf(filePath, "%s/%s",path,dirStream->d_name);
-    stat(filePath, fs);
+    stat(filePath, &fs);
 
-    if((int)log10(fs->st_size) > size) size = (int)log10(fs->st_size);
+    if((int)log10(fs.st_size) > size) size = (int)log10(fs.st_size);
 
     dirStream = readdir(dir);
   }
 
-  free(dirStream);
-  free(fs);
+  //free(dirStream);
+  closedir(dir);
 
   return size + 1;
 }
@@ -84,7 +86,7 @@ long getFileStats(char* path, struct dirent* dirStream, int lDirNum, int lFileSi
   int temp = 0b100000000;
   long size;
   struct stat* fs = malloc(sizeof(struct stat));
-  char finalPath[512];
+  char finalPath[1024];
   strcpy(finalPath, path);
   strcat(finalPath, "/");
   strcat(finalPath, dirStream->d_name);
@@ -108,7 +110,7 @@ long getFileStats(char* path, struct dirent* dirStream, int lDirNum, int lFileSi
 
   if(dirStream->d_type == TYPE_FOLDER) {
     dir = opendir(finalPath);
-    printf(" %*ld", lDirNum,getDirNum(finalPath,dir));
+    printf(" %*ld", lDirNum,getDirNum(finalPath));
     closedir(dir);
   } else printf(" %*d",lDirNum, 1);
 
@@ -134,32 +136,23 @@ long getFileStats(char* path, struct dirent* dirStream, int lDirNum, int lFileSi
 long getDirStats(char* path, int ifR, int indent){
   DIR* dir;
   struct dirent* dirStream;
-  long totalSize;
+  long totalSize = 0;
   int lFileSize;
   int lDirNum;
-  char newPath[512];
+  char newPath[1024];
 
   dir = opendir(path);
 
   if(dir == NULL){
     printf("Failed to open directory %s: %s\n", path,strerror(errno));
-    free(dirStream);
     closedir(dir);
-    return totalSize;
+    exit(1);
   }
 
-  dirStream = malloc(sizeof(struct dirent*));
+  lFileSize = getLargestFileSize(path);
 
-  totalSize = 0;
-
-  lFileSize = getLargestFileSize(path, dir);
-  closedir(dir);
-
-  dir = opendir(path);
-  lDirNum = getLargestDirNum(path, dir);
-  closedir(dir);
-
-  dir = opendir(path);
+  lDirNum = getLargestDirNum(path);
+  
   dirStream = readdir(dir);
 
   while(dirStream != NULL){
@@ -185,8 +178,16 @@ long getDirStats(char* path, int ifR, int indent){
 
 int main(int argc, char* argv[]){
   char buffer[128];
-  int ifR = (argc > 2 && strcmp(argv[2],"-r") == 0) ? 1 : 0;
-  long totalSize = getDirStats(argv[1],ifR,0);
+  int ifR;
+  long totalSize;
+
+  if(argc < 2) {
+    printf("Error: No file selected!\n");
+    return 1;
+  }
+
+  ifR = (argc >= 3 && strcmp(argv[2],"-r") == 0) ? 1 : 0;
+  totalSize = getDirStats(argv[1],ifR,0);
   sprintf(buffer, "%ldB, %ldKB, %ldMB, %ldGB",totalSize,totalSize / 1024, totalSize / 1046576, totalSize / 1073741824);
   printf("\n\nTotal size: %s\n",buffer);
 }
